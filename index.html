@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Propuesta: Optimización Tablas Maestras</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;   /* Azul default */
+            --secondary-color: #1e40af; /* Azul oscuro default */
+            --text-color: #1f2937;      /* Gris oscuro default */
+            --bg-color: #f3f4f6;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            overflow: hidden; /* Evitar scroll en la presentación */
+        }
+
+        /* Utilidades para los colores dinámicos */
+        .dynamic-text { color: var(--text-color); }
+        .dynamic-primary-bg { background-color: var(--primary-color); }
+        .dynamic-primary-text { color: var(--primary-color); }
+        
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transform: translateX(50px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: all;
+            z-index: 10;
+        }
+
+        /* Panel de control */
+        #settings-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+        #settings-panel.hidden-panel {
+            transform: translateX(-100%);
+        }
+
+        /* Botones */
+        .btn-nav {
+            background-color: var(--primary-color);
+            color: white;
+            transition: opacity 0.3s, background-color 0.3s;
+        }
+        .btn-nav:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-nav:hover:not(:disabled) {
+            background-color: var(--secondary-color);
+        }
+
+        /* Listas personalizadas */
+        ul.custom-list li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        ul.custom-list li::before {
+            content: "•";
+            color: var(--primary-color);
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen relative">
+
+    <!-- PANEL DE CONFIGURACIÓN -->
+    <div id="settings-panel" class="absolute top-4 left-4 z-50 bg-white p-4 rounded-lg shadow-xl border border-gray-200 w-64">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-sm uppercase tracking-wider text-gray-500">Personalizar</h3>
+            <button id="toggle-panel-btn" class="text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L11.414 10 7.121 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+        
+        <div class="space-y-3">
+            <div>
+                <label class="block text-xs font-semibold mb-1">Color Principal</label>
+                <input type="color" id="color-primary" value="#2563eb" class="w-full h-8 cursor-pointer rounded border border-gray-300">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold mb-1">Color Secundario</label>
+                <input type="color" id="color-secondary" value="#1e40af" class="w-full h-8 cursor-pointer rounded border border-gray-300">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold mb-1">Color de Texto</label>
+                <input type="color" id="color-text" value="#1f2937" class="w-full h-8 cursor-pointer rounded border border-gray-300">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Botón flotante para mostrar panel si se cierra -->
+    <button id="show-panel-btn" class="absolute top-4 left-4 z-40 p-2 bg-white rounded-full shadow-md hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+    </button>
+
+    <!-- CONTENEDOR PRINCIPAL DE LA PRESENTACIÓN -->
+    <div class="w-full h-full flex flex-col items-center justify-between relative bg-white shadow-2xl max-w-6xl mx-auto my-0 md:my-4 md:rounded-2xl overflow-hidden">
+        
+        <!-- HEADER (Logo o Título pequeño) -->
+        <header class="w-full p-6 flex justify-between items-center border-b border-gray-100 z-20 bg-white bg-opacity-90">
+            <div class="font-bold text-xl tracking-tight dynamic-primary-text">Data Engineering</div>
+            <div class="text-sm text-gray-400">AWS Athena Optimization</div>
+        </header>
+
+        <!-- ÁREA DE DIAPOSITIVAS -->
+        <main class="relative w-full flex-1 overflow-hidden">
+            
+            <!-- SLIDE 1: TÍTULO -->
+            <section class="slide active">
+                <div class="text-center max-w-4xl">
+                    <span class="inline-block py-1 px-3 rounded-full bg-blue-100 text-blue-800 text-xs font-bold mb-4">Estrategia de Datos</span>
+                    <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">Consolidación de <br/><span class="dynamic-primary-text">Tablas Maestras</span></h1>
+                    <p class="text-xl md:text-2xl text-gray-500 mb-8 max-w-2xl mx-auto">Propuesta y estrategia de la documentación y optimización de tablas del producto Digital Car Loan en AWS Athena.</p>
+                    <div class="flex justify-center gap-4">
+                        <div class="flex items-center gap-2 text-sm text-gray-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                            9 Tablas "Legacy"
+                        </div>
+                        <span class="text-gray-300">|</span>
+                        <div class="flex items-center gap-2 text-sm text-gray-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Solución End-to-End
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 2: EL PROBLEMA -->
+            <section class="slide">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12 w-full max-w-5xl items-center">
+                    <div>
+                        <h2 class="text-4xl font-bold mb-6">Situación Actual: <br/><span class="text-red-500">La "Caja Negra"</span></h2>
+                        <p class="text-lg text-gray-600 mb-6">Actualmente operamos con 9 tablas maestras en Athena con problemas críticos de mantenibilidad.</p>
+                        <ul class="custom-list space-y-3 text-lg text-gray-600">
+                            <li>Falta total de documentación (nombres y tipos de datos desconocidos).</li>
+                            <li>Ausencia de Diccionarios de Datos.</li>
+                            <li>Riesgo de duplicidad y costos elevados por escaneos ineficientes.</li>
+                            <li>Imposibilidad de realizar limpieza sin riesgo de romper procesos.</li>
+                        </ul>
+                    </div>
+                    <div class="bg-gray-50 p-8 rounded-2xl border border-gray-200 shadow-inner flex flex-col items-center justify-center text-center">
+                        <svg class="w-24 h-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        <h3 class="text-xl font-bold text-gray-700">Deuda Técnica</h3>
+                        <p class="text-sm text-gray-500 mt-2">Mantener el estado actual incrementa la complejidad exponencialmente con cada nuevo requerimiento.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 3: FASE 1 DIAGNÓSTICO -->
+            <section class="slide">
+                <div class="max-w-4xl w-full">
+                    <h2 class="text-4xl font-bold mb-2">Fase 1: Diagnóstico</h2>
+                    <p class="text-xl text-gray-400 mb-10">Ingeniería Inversa Automática</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="p-6 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <div class="w-12 h-12 rounded-lg dynamic-primary-bg flex items-center justify-center text-white mb-4">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-2">Extracción de Metadatos</h3>
+                            <p class="text-gray-600">Uso de <strong>AWS Glue Crawlers</strong> para escanear S3 y catalogar automáticamente columnas, tipos de datos inferidos y particiones existentes.</p>
+                        </div>
+
+                        <div class="p-6 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <div class="w-12 h-12 rounded-lg dynamic-primary-bg flex items-center justify-center text-white mb-4">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-2">Data Profiling</h3>
+                            <p class="text-gray-600">Ejecución de queries exploratorias para detectar cardinalidad, nulos y duplicados, permitiendo identificar qué tablas se pueden fusionar.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 4: ESTRATEGIA -->
+            <section class="slide">
+                <div class="max-w-5xl w-full">
+                    <h2 class="text-3xl font-bold mb-8 text-center">Fase 2: Arquitectura de Solución</h2>
+                    
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <!-- Opción A -->
+                        <div class="flex-1 bg-white p-6 rounded-2xl border-2 border-dashed border-gray-300 hover:border-blue-500 transition-colors">
+                            <h3 class="text-xl font-bold dynamic-primary-text mb-4">A. Modelo Dimensional (Star Schema)</h3>
+                            <p class="text-sm text-gray-600 mb-4">Ideal para Business Intelligence (BI). Separa los datos en:</p>
+                            <ul class="text-sm space-y-2 text-gray-700 mb-4">
+                                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-green-500 mr-2"></span>Hechos (Facts): Transacciones, Logs.</li>
+                                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>Dimensiones (Dims): Clientes, Productos.</li>
+                            </ul>
+                            <div class="mt-auto p-2 bg-gray-100 rounded text-center text-xs font-semibold">Alta Integridad</div>
+                        </div>
+
+                        <!-- Separador -->
+                        <div class="flex items-center justify-center text-gray-400 font-bold">O</div>
+
+                        <!-- Opción B -->
+                        <div class="flex-1 bg-white p-6 rounded-2xl border-2 border-solid hover:shadow-lg transition-shadow" style="border-color: var(--primary-color);">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-xl font-bold dynamic-primary-text">B. One Big Table (OBT)</h3>
+                                <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Recomendada</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-4">Ideal para performance en Athena y reducción de costos.</p>
+                            <ul class="text-sm space-y-2 text-gray-700 mb-4">
+                                <li class="flex items-center"><svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Aplanar las 9 tablas en 1 o 2 "Súper Tablas".</li>
+                                <li class="flex items-center"><svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Elimina JOINs costosos en lectura.</li>
+                                <li class="flex items-center"><svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Uso eficiente de Parquet.</li>
+                            </ul>
+                            <div class="mt-auto p-2 dynamic-primary-bg text-white rounded text-center text-xs font-semibold">Máxima Velocidad</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 5: ROADMAP -->
+            <section class="slide">
+                <div class="max-w-4xl w-full">
+                    <h2 class="text-4xl font-bold mb-8">Fase 3: Implementación</h2>
+                    
+                    <div class="relative">
+                        <!-- Línea conectora -->
+                        <div class="absolute left-6 top-0 bottom-0 w-1 bg-gray-200"></div>
+
+                        <!-- Pasos -->
+                        <div class="space-y-8">
+                            <div class="relative pl-16">
+                                <div class="absolute left-0 top-1 w-12 h-12 rounded-full dynamic-primary-bg text-white flex items-center justify-center font-bold z-10">1</div>
+                                <h3 class="text-xl font-bold">Mapeo de Linaje</h3>
+                                <p class="text-gray-600 text-sm">Auditoría de Query History para identificar consumidores actuales y evitar roturas.</p>
+                            </div>
+                            <div class="relative pl-16">
+                                <div class="absolute left-0 top-1 w-12 h-12 rounded-full dynamic-primary-bg text-white flex items-center justify-center font-bold z-10">2</div>
+                                <h3 class="text-xl font-bold">Diseño y Estandarización</h3>
+                                <p class="text-gray-600 text-sm">Definición de esquema con <em>snake_case</em> y casteo de tipos explícito.</p>
+                            </div>
+                            <div class="relative pl-16">
+                                <div class="absolute left-0 top-1 w-12 h-12 rounded-full dynamic-primary-bg text-white flex items-center justify-center font-bold z-10">3</div>
+                                <h3 class="text-xl font-bold">Desarrollo ETL (CTAS)</h3>
+                                <p class="text-gray-600 text-sm">Creación de tablas optimizadas usando <code>CREATE TABLE AS SELECT</code>.</p>
+                            </div>
+                            <div class="relative pl-16">
+                                <div class="absolute left-0 top-1 w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold z-10">4</div>
+                                <h3 class="text-xl font-bold">Deprecación Segura</h3>
+                                <p class="text-gray-600 text-sm">Renombrar tablas viejas a <code>z_old_*</code> y eliminar tras periodo de backup.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 6: BUENAS PRÁCTICAS -->
+            <section class="slide">
+                <div class="max-w-5xl w-full">
+                    <h2 class="text-3xl font-bold mb-6 text-center">Estándares Técnicos Aplicados</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Card 1 -->
+                        <div class="bg-gray-50 p-6 rounded-xl text-center border hover:border-blue-400 transition-colors">
+                            <div class="text-4xl mb-4">📦</div>
+                            <h3 class="font-bold mb-2">Formato</h3>
+                            <p class="text-sm text-gray-600">Migración a <strong>Apache Parquet</strong>. Formato columnar que reduce drásticamente el costo de escaneo en Athena.</p>
+                        </div>
+                        <!-- Card 2 -->
+                        <div class="bg-gray-50 p-6 rounded-xl text-center border hover:border-blue-400 transition-colors">
+                            <div class="text-4xl mb-4">🗜️</div>
+                            <h3 class="font-bold mb-2">Compresión</h3>
+                            <p class="text-sm text-gray-600">Uso de <strong>Snappy</strong>. Balance óptimo entre tamaño en disco y velocidad de descompresión.</p>
+                        </div>
+                        <!-- Card 3 -->
+                        <div class="bg-gray-50 p-6 rounded-xl text-center border hover:border-blue-400 transition-colors">
+                            <div class="text-4xl mb-4">📅</div>
+                            <h3 class="font-bold mb-2">Particionamiento</h3>
+                            <p class="text-sm text-gray-600">Estructura por <code>/year/month/</code> para evitar escaneos completos de la tabla (Full Table Scans).</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 7: ENTREGABLES -->
+            <section class="slide">
+                <div class="text-center max-w-4xl">
+                    <h2 class="text-4xl font-bold mb-8">Entregables y Valor</h2>
+                    
+                    <div class="grid grid-cols-2 gap-4 text-left mb-10">
+                        <div class="flex items-center p-4 bg-white shadow-sm rounded-lg">
+                            <svg class="w-6 h-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-semibold">Documento de Auditoría</span>
+                        </div>
+                        <div class="flex items-center p-4 bg-white shadow-sm rounded-lg">
+                            <svg class="w-6 h-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-semibold">Diccionario de Datos</span>
+                        </div>
+                        <div class="flex items-center p-4 bg-white shadow-sm rounded-lg">
+                            <svg class="w-6 h-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-semibold">Scripts ETL (SQL Templates)</span>
+                        </div>
+                        <div class="flex items-center p-4 bg-white shadow-sm rounded-lg">
+                            <svg class="w-6 h-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="font-semibold">Tablas Optimizadas</span>
+                        </div>
+                    </div>
+
+                    <button class="px-8 py-3 dynamic-primary-bg text-white font-bold rounded-full shadow-lg hover:opacity-90 transition-opacity" onclick="location.reload()">
+                        Reiniciar Presentación
+                    </button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- FOOTER: CONTROLES -->
+        <footer class="w-full bg-white border-t border-gray-100 p-4 z-20">
+            <!-- Barra de progreso -->
+            <div class="w-full h-1 bg-gray-100 rounded-full mb-4 overflow-hidden">
+                <div id="progress-bar" class="h-full dynamic-primary-bg transition-all duration-300" style="width: 0%"></div>
+            </div>
+
+            <div class="flex justify-between items-center px-4">
+                <div id="slide-counter" class="text-sm font-semibold text-gray-500">1 / 7</div>
+                
+                <div class="flex gap-4">
+                    <button id="prev-btn" class="btn-nav p-3 rounded-full shadow-md focus:outline-none" disabled>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button id="next-btn" class="btn-nav p-3 rounded-full shadow-md focus:outline-none">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Referencias DOM
+            const slides = document.querySelectorAll('.slide');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const progressBar = document.getElementById('progress-bar');
+            const slideCounter = document.getElementById('slide-counter');
+            
+            // Panel de Configuración
+            const settingsPanel = document.getElementById('settings-panel');
+            const togglePanelBtn = document.getElementById('toggle-panel-btn');
+            const showPanelBtn = document.getElementById('show-panel-btn');
+            
+            // Inputs de Color
+            const colorPrimaryInput = document.getElementById('color-primary');
+            const colorSecondaryInput = document.getElementById('color-secondary');
+            const colorTextInput = document.getElementById('color-text');
+
+            let currentSlide = 0;
+            const totalSlides = slides.length;
+
+            // --- Lógica de Navegación ---
+            
+            function updateSlides() {
+                // Actualizar clases de visibilidad
+                slides.forEach((slide, index) => {
+                    slide.classList.remove('active');
+                    if (index === currentSlide) {
+                        slide.classList.add('active');
+                    }
+                });
+
+                // Actualizar estado de botones
+                prevBtn.disabled = currentSlide === 0;
+                nextBtn.disabled = currentSlide === totalSlides - 1;
+
+                // Actualizar progreso
+                const progressPercentage = ((currentSlide + 1) / totalSlides) * 100;
+                progressBar.style.width = `${progressPercentage}%`;
+
+                // Actualizar contador
+                slideCounter.textContent = `${currentSlide + 1} / ${totalSlides}`;
+            }
+
+            function nextSlide() {
+                if (currentSlide < totalSlides - 1) {
+                    currentSlide++;
+                    updateSlides();
+                }
+            }
+
+            function prevSlide() {
+                if (currentSlide > 0) {
+                    currentSlide--;
+                    updateSlides();
+                }
+            }
+
+            // Event Listeners Botones
+            nextBtn.addEventListener('click', nextSlide);
+            prevBtn.addEventListener('click', prevSlide);
+
+            // Event Listeners Teclado
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight') nextSlide();
+                if (e.key === 'ArrowLeft') prevSlide();
+            });
+
+            // --- Lógica de Personalización ---
+
+            function updateColors() {
+                const root = document.documentElement;
+                root.style.setProperty('--primary-color', colorPrimaryInput.value);
+                root.style.setProperty('--secondary-color', colorSecondaryInput.value);
+                root.style.setProperty('--text-color', colorTextInput.value);
+            }
+
+            colorPrimaryInput.addEventListener('input', updateColors);
+            colorSecondaryInput.addEventListener('input', updateColors);
+            colorTextInput.addEventListener('input', updateColors);
+
+            // Toggle Panel
+            togglePanelBtn.addEventListener('click', () => {
+                settingsPanel.classList.add('hidden-panel');
+                showPanelBtn.classList.remove('hidden');
+            });
+
+            showPanelBtn.addEventListener('click', () => {
+                settingsPanel.classList.remove('hidden-panel');
+                showPanelBtn.classList.add('hidden');
+            });
+
+            // Inicialización
+            updateSlides();
+        });
+    </script>
+</body>
+</html>
